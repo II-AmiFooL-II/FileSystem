@@ -55,7 +55,7 @@ void entrywriter(char *name,long place1,long place2){//here thirty is a magic nu
 	int state = 0;
 	int sum=0,i=1,k=entry_size_bytes,entries;
 	char buf[1024]={0},c;
-	char blank = ' ';
+	char blank = '.';
 	float temp=place1;
 
 	//------------------------//
@@ -103,7 +103,8 @@ void entrywriter(char *name,long place1,long place2){//here thirty is a magic nu
 				i++;
 		}
 		printf("after while i = %d\n",i);
-		fseek(fp,i*entry_size_bytes,SEEK_END);
+		int t=fseek(fp,(blocks*block_size)-((i)*entry_size_bytes),SEEK_SET);
+		printf("fseek=%d\n",t);
 		strcat(buf,name);
 		strcat(buf,"~");
 		char l[10];
@@ -116,10 +117,26 @@ void entrywriter(char *name,long place1,long place2){//here thirty is a magic nu
 			printf("problem in entring entry size over\n");
 		}
 		printf("%s\n",buf);
+		//fwrite(buf,sizeof(buf),1,fp);
+		//for(sum;sum<=entry_size_bytes;sum++){ 
+			//printf("sum =%d\n",sum);
+			//printf("fp=%u\n",fp);
+			//fwrite(&blank,sizeof(blank),1,fp);
+		//	strcat(buf,".");
+		//}
 		fwrite(buf,sizeof(buf),1,fp);
-		for(sum;sum<=entry_size_bytes;sum++){ 
-			fwrite(&blank,sizeof(blank),1,fp);
-		}
+		//printf("nentries %d\n",t);
+		//------------------------------------------------------------------------//
+		//printf("fp=%u\n",*fp);
+		t=fseek(fp,blocks*block_size-(i*entry_size_bytes),SEEK_SET);
+		//t=fseek(fp,i*entry_size_bytes+1,SEEK_END);
+		printf("fseek=%d\n",t);
+		buf[64]='\0';
+		memset(buf,0,sizeof(buf));
+		fread(buf,sizeof(buf),1,fp);
+		//printf("fp=%u\n",*fp);
+		printf("buffer is %s and num is %d,and size is %d\n",buf,entry_size_bytes*i,strlen(buf));
+		//--------------------------------------------------------------------------//
 		fseek(fp,0,SEEK_SET);
 		//-----------------------------------------------------------------//
 		/*
@@ -146,7 +163,8 @@ void entrywriter(char *name,long place1,long place2){//here thirty is a magic nu
 		while(entries>0){
 			fseek(fp,i*k,SEEK_END);
 			fread(buf,sizeof(buf),1,fp);
-			if(buf[0]==' '){
+			printf("buffer updation=%s\n",buf);
+			if(buf[0]=='.'){
 				printf("no matching file found\n");
 				fclose(fp);
 				return;
@@ -170,8 +188,8 @@ void entrywriter(char *name,long place1,long place2){//here thirty is a magic nu
 
 void infowriter(char *info,long place){
 	//printf("entered infowriter\n");
-	FILE *fp = fopen("fsysb.bin","a+");
-	fseek(fp,status_blocks*block_size+place,SEEK_SET);
+	FILE *fp = fopen("fsysb.bin","ab+");
+	fseek(fp,(status_blocks+place)*block_size,SEEK_SET);
 	//fprintf(fp,"%s",info);
 	fwrite(info,sizeof(info),1,fp);
 	fclose(fp);
@@ -181,7 +199,7 @@ void create_linker(){
 	//printf("entered create linker\n");
 	int X = 1024*1024-1;
 	int i=0;
-	FILE *fp = fopen("fsysb.bin","w");
+	FILE *fp = fopen("fsysb.bin","wb");
 	if(fp==NULL){
 		printf("error");
 	}
@@ -191,7 +209,7 @@ void create_linker(){
 	fputc('\0',fp);
 	fclose(fp);
 	//printf("fclose crossed \n");
-	fp = fopen("fsysb.bin","r+");
+	fp = fopen("fsysb.bin","rb+");
 	//printf("2fopen crossed \n");	
 	if(fp==NULL){
 		printf("error");
@@ -253,7 +271,7 @@ void name_info(char *s){
 }
 void init(){
         FILE *fp;
-        if((fp=fopen("fsysb.bin", "r"))==NULL){
+        if((fp=fopen("fsysb.bin", "rb"))==NULL){
 		create_linker();
 		return;
 	}
@@ -268,32 +286,40 @@ void init(){
 	fclose(fp);*/
 }
 int finder(char *name,char *buffer){
-	FILE *fp = fopen("fsysb.bin","r");
+	FILE *fp = fopen("fsysb.bin","rb+");
 	int count;
+	char buff[64];
 	fread(&count,sizeof(count),1,fp);
-	printf("count=%d\n",count);
+	printf("count=%dand size of buf =%d\n",count,sizeof(buff));
 	while(count>0){
 		printf("in whle\n");
-		fseek(fp,entry_size_bytes*count,SEEK_END);
-		fread(buffer,sizeof(buffer),1,fp);
-		printf("%s\n",buffer);
-		if(strncmp(name,buffer,strlen(name))==0)
+		//fseek(fp,last_block_bytes*count,SEEK_SET);
+		//fseek(fp,entry_size_bytes*count,SEEK_END);
+		fseek(fp,blocks*block_size-(count*entry_size_bytes),SEEK_SET);
+		fread(buff,sizeof(buff),1,fp);
+		//buff[64]='\0';
+		printf("len is %d\nbuff=%s\n",strlen(buff),buff);
+		if(strncmp(name,buff,strlen(name))==0){
+			strcpy(buffer,buff);
 			return 0;
+		}
 		count--;
 	}
 	return -1;
 }
 void view(char *s){
 	printf("%s\n",s);
-	char buffer[64];
-	int status,j,arr[10];
+	char buffer[64]={0};
+	int status,j,arr[10]={0,0,0,0,0,0,0,0,0,0};
 	FILE *fp;
+	printf("buffer size %d\n",sizeof(buffer));
 	status = finder(s,buffer);
-	fp = fopen("fsysb.bin","r");
+	printf("buffer=%s,len=%d\n",buffer,strlen(buffer));
+	fp = fopen("fsysb.bin","rb");
 	if(status<0){
 		printf("no matching file found\n");
 	}
-	for(int i=0,j=0;buffer[i]!=' ';i++){
+	for(int i=0,j=0;buffer[i]!='.';i++){
 		if(buffer[i]=='~'){
 			status=1;
 		}
@@ -302,10 +328,12 @@ void view(char *s){
 				j++;
 				continue;
 			}
+			//printf("arr=%d,j=%d,buff=%d",arr[j],j,buffer[i]);
 			arr[j]=arr[j]*10+buffer[i]-48;
 		}
 
 	}
+	printf("arr=%d\n",arr[0]);
 	for(int i=0;i<j;i++){
 		fseek(fp,status_blocks*block_size+arr[i],SEEK_SET);
 		fread(buffer+(i+1)*8,8,1,fp);
